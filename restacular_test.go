@@ -6,23 +6,25 @@ import (
 	"testing"
 )
 
-var basicHandler = func(resp Response, r *http.Request) {
+type TestView struct{}
+
+var basicHandler = func(resp *Response, r *http.Request) {
 	resp.Write([]byte("Hello world"))
 }
 
-var handlerWithParam = func(resp Response, r *http.Request) {
+var handlerWithParam = func(resp *Response, r *http.Request) {
 	id := r.URL.Query().Get(":id")
 	resp.Write([]byte(id))
 }
 
 func TestAddingRoute(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 	pattern := "/lets-kill-some-ducks"
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", pattern, basicHandler},
 	)
-	foundPattern := mux.routes[0].Pattern
+	foundPattern := app.routes[0].Pattern
 
 	if foundPattern != pattern {
 		t.Error("Route was not present in the router after adding it")
@@ -30,14 +32,14 @@ func TestAddingRoute(t *testing.T) {
 }
 
 func TestAddingRouteWithTrailingSlash(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 	pattern := "/lets-kill-some-ducks/"
 	expectedPattern := "/lets-kill-some-ducks"
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", pattern, basicHandler},
 	)
-	foundPattern := mux.routes[0].Pattern
+	foundPattern := app.routes[0].Pattern
 
 	if foundPattern != expectedPattern {
 		t.Error("Route was not present in the router after adding it")
@@ -48,14 +50,14 @@ func TestAddingRouteWithTrailingSlash(t *testing.T) {
 }
 
 func TestMatchExistingRoute(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 	pattern := "/ducks/:id"
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", pattern, basicHandler},
 	)
 
-	routeFound := mux.match("GET", "/ducks/0irfer8")
+	routeFound := app.matchRequest("GET", "/ducks/0irfer8")
 
 	if routeFound == nil {
 		t.Error("Couldn't find a match for the given url")
@@ -63,13 +65,13 @@ func TestMatchExistingRoute(t *testing.T) {
 }
 
 func TestMatchUnexistingRoute(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 	pattern := "/ducks/:id"
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", pattern, basicHandler},
 	)
-	routeFound := mux.match("GET", "/ducks/0irfer8/ducklings")
+	routeFound := app.matchRequest("GET", "/ducks/0irfer8/ducklings")
 
 	if routeFound != nil {
 		t.Error("Found a match for the given url when we shouldn't have")
@@ -79,9 +81,9 @@ func TestMatchUnexistingRoute(t *testing.T) {
 // High-level tests -----
 
 func TestServeOk(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", "/ducks/:id", handlerWithParam},
 	)
 
@@ -91,7 +93,7 @@ func TestServeOk(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	app.ServeHTTP(w, req)
 
 	if w.Code != 200 {
 		t.Errorf("Received http code %d instead of 200", w.Code)
@@ -103,7 +105,7 @@ func TestServeOk(t *testing.T) {
 }
 
 func TestServeNotExistingRoute(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 
 	req, err := http.NewRequest("GET", "/ducks/0irfer8", nil)
 	if err != nil {
@@ -111,7 +113,7 @@ func TestServeNotExistingRoute(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	app.ServeHTTP(w, req)
 
 	if w.Code != 404 {
 		t.Errorf("Received http code %d instead of 404", w.Code)
@@ -119,9 +121,9 @@ func TestServeNotExistingRoute(t *testing.T) {
 }
 
 func TestServeTrailingSlash(t *testing.T) {
-	mux := NewRouter()
+	app := NewApplication()
 
-	mux.AddRoutes(
+	app.SetRoutes(
 		Route{"GET", "/ducks/:id", handlerWithParam},
 	)
 
@@ -131,7 +133,7 @@ func TestServeTrailingSlash(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 
-	mux.ServeHTTP(w, req)
+	app.ServeHTTP(w, req)
 
 	if w.Code != 404 {
 		t.Errorf("Received http code %d instead of 404", w.Code)
