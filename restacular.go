@@ -112,6 +112,6 @@ func (app *Application) dispatch() http.HandlerFunc {
 
 // Basic implementation to satisfy interface, easy to add wrapper around like Gzip
 func (app *Application) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	handler := app.dispatch()
+	handler := gzipWrapper(app.dispatch())
 	handler(resp, req)
 }

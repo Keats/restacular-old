@@ -1,6 +1,8 @@
 package restacular
 
 import (
+	"bytes"
+	"compress/gzip"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,6 +93,7 @@ func TestServeOk(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
 	w := httptest.NewRecorder()
 
 	app.ServeHTTP(w, req)
@@ -99,8 +102,13 @@ func TestServeOk(t *testing.T) {
 		t.Errorf("Received http code %d instead of 200", w.Code)
 	}
 
-	if w.Body.String() != "0irfer8" {
-		t.Errorf("Got %s as body instead of 0irfer8", w.Body.String())
+	unzippedBody, _ := gzip.NewReader(w.Body)
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(unzippedBody)
+	body := buf.String()
+
+	if body != "0irfer8" {
+		t.Errorf("Got %s as body instead of 0irfer8", body)
 	}
 }
 
