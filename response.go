@@ -16,22 +16,34 @@ type ApiError struct {
 	MoreInfo         string `json:"moreInfo"`
 }
 
-func (resp *Response) WriteError(apiError ApiError) {
-	resp.WriteResponse(apiError.Code, apiError)
-}
-
-func (resp *Response) WriteResponse(httpCode int, obj interface{}) {
-	resp.Header().Set("content-type", "application/json")
-
+func (resp *Response) Send(httpCode int, obj interface{}) {
 	var content []byte
 
 	content, err := json.Marshal(obj)
-
 	if err != nil {
-		resp.WriteHeader(http.StatusInternalServerError)
-		resp.Write([]byte(""))
-	} else {
-		resp.WriteHeader(httpCode)
-		resp.Write(content)
+		resp.sendInternalError()
 	}
+
+	resp.writeResponse(httpCode, content)
+}
+
+func (resp *Response) SendError(apiError *ApiError) {
+	var content []byte
+
+	content, err := json.Marshal(apiError)
+	if err != nil {
+		resp.sendInternalError()
+	}
+	resp.writeResponse(apiError.Code, content)
+}
+
+func (resp *Response) sendInternalError() {
+	resp.WriteHeader(http.StatusInternalServerError)
+	resp.Write([]byte(""))
+}
+
+func (resp *Response) writeResponse(httpCode int, content []byte) {
+	resp.Header().Set("content-type", "application/json")
+	resp.WriteHeader(httpCode)
+	resp.Write(content)
 }

@@ -3,6 +3,7 @@ package restacular
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,12 +12,12 @@ import (
 type TestView struct{}
 
 var basicHandler = func(resp *Response, r *http.Request) {
-	resp.Write([]byte("Hello world"))
+	resp.Send(200, []byte("Hello world"))
 }
 
 var handlerWithParam = func(resp *Response, r *http.Request) {
 	id := r.URL.Query().Get(":id")
-	resp.Write([]byte(id))
+	resp.Send(200, string(id))
 }
 
 func TestAddingRoute(t *testing.T) {
@@ -105,7 +106,10 @@ func TestServeOk(t *testing.T) {
 	unzippedBody, _ := gzip.NewReader(w.Body)
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(unzippedBody)
-	body := buf.String()
+	var body string
+	test := buf.String()
+
+	_ = json.Unmarshal([]byte(test), &body)
 
 	if body != "0irfer8" {
 		t.Errorf("Got %s as body instead of 0irfer8", body)
