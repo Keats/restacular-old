@@ -2,6 +2,7 @@ package restacular
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -91,6 +92,7 @@ func (app *Application) dispatch() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		requestPath := req.URL.Path
 		requestMethod := req.Method
+		log.Println(requestMethod, requestPath)
 
 		routeFound := app.matchRequest(requestMethod, requestPath)
 
