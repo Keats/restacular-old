@@ -16,6 +16,10 @@ type ApiError struct {
 	MoreInfo         string `json:"moreInfo"`
 }
 
+func (err *ApiError) Error() string {
+	return err.DeveloperMessage
+}
+
 func (resp *Response) Send(httpCode int, obj interface{}) {
 	var content []byte
 
