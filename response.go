@@ -20,6 +20,10 @@ func (err *ApiError) Error() string {
 	return err.DeveloperMessage
 }
 
+func NewInternalError() *ApiError {
+	return &ApiError{500, 0, "Internal Server Error", ""}
+}
+
 func (resp *Response) Send(httpCode int, obj interface{}) {
 	var content []byte
 

@@ -11,11 +11,11 @@ import (
 
 type TestView struct{}
 
-var basicHandler = func(resp *Response, r *http.Request) {
+var basicHandler = func(resp *Response, r *Request) {
 	resp.Send(200, []byte("Hello world"))
 }
 
-var handlerWithParam = func(resp *Response, r *http.Request) {
+var handlerWithParam = func(resp *Response, r *Request) {
 	id := r.URL.Query().Get(":id")
 	resp.Send(200, string(id))
 }

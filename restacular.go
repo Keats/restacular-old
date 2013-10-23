@@ -12,7 +12,7 @@ import (
 type Route struct {
 	HttpMethod string
 	Pattern    string
-	Func       func(*Response, *http.Request)
+	Func       func(*Response, *Request)
 }
 
 // The main object, only cares about route
@@ -92,7 +92,17 @@ func (app *Application) dispatch() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		requestPath := req.URL.Path
 		requestMethod := req.Method
+
 		log.Println(requestMethod, requestPath)
+
+		if requestMethod == "OPTIONS" {
+			resp.Header().Set("Access-Control-Allow-Origin", "*")
+			resp.Header().Set("Access-Control-Allow-Methods", "*")
+			resp.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			resp.WriteHeader(200)
+			resp.Write([]byte(""))
+			return
+		}
 
 		routeFound := app.matchRequest(requestMethod, requestPath)
 
@@ -104,7 +114,7 @@ func (app *Application) dispatch() http.HandlerFunc {
 			}
 
 			req.URL.RawQuery = url.Values(values).Encode() + "&" + req.URL.RawQuery
-			routeFound.route.Func(&Response{resp}, req)
+			routeFound.route.Func(&Response{resp}, &Request{*req})
 		} else {
 			http.NotFound(Response{resp}, req)
 		}
