@@ -1,63 +1,68 @@
 package restacular
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
-// User added route
-type Route struct {
-	HttpMethod string
-	Pattern    string
-	Func       func(*Response, *Request)
+type Context struct {
+	Request  *Request
+	Response Response
+	Params   map[string]string
 }
 
-// The main object, only cares about route
-type Application struct {
-	routes []Route
+type route struct {
+	httpMethod string
+	pattern    string
+	handler    func(*Context)
 }
 
-// Internal type to get the result from a match
-// Params will be added to the request by the dispatch method
-type matchingRoute struct {
-	route  Route
-	params map[string]string
+type Server struct {
+	routes []route
+	debug  bool
 }
 
-func NewApplication() *Application {
-	return &Application{}
+func NewServer() *Server {
+	return &Server{}
 }
 
-func (app *Application) SetRoutes(routes ...Route) {
-	for i := range routes {
-		// if pattern is not the root slash, remove trailing slash
-		if len(routes[i].Pattern) > 1 && strings.HasSuffix(routes[i].Pattern, "/") {
-			routes[i].Pattern = strings.TrimRight(routes[i].Pattern, "/")
-		}
-		app.routes = append(app.routes, routes[i])
+func newContext(request *Request, response Response, params map[string]string) *Context {
+	return &Context{request, response, params}
+}
+
+func (server *Server) addRoute(method string, pattern string, handler func(*Context)) {
+	if len(pattern) > 1 && strings.HasSuffix(pattern, "/") {
+		pattern = strings.TrimRight(pattern, "/")
 	}
+	server.routes = append(server.routes, route{method, pattern, handler})
 }
 
-// Here for debug purpose
-func (app *Application) ShowRoutes() {
-	for i := range app.routes {
-		fmt.Printf("%v\n", app.routes[i])
-	}
+func (server *Server) Get(pattern string, handler func(*Context)) {
+	server.addRoute("GET", pattern, handler)
 }
 
-// Finds if there is a match and get the params at the same time
-func (app *Application) matchRequest(method, url string) *matchingRoute {
-	for i := range app.routes {
-		// Easy check on the method first
-		if method != app.routes[i].HttpMethod {
+func (server *Server) Post(pattern string, handler func(*Context)) {
+	server.addRoute("POST", pattern, handler)
+}
+
+func (server *Server) Put(pattern string, handler func(*Context)) {
+	server.addRoute("PUT", pattern, handler)
+}
+
+func (server *Server) Delete(pattern string, handler func(*Context)) {
+	server.addRoute("DELETE", pattern, handler)
+}
+
+func (server *Server) matchRequest(method, url string) (*route, map[string]string) {
+	params := make(map[string]string)
+
+	for _, route := range server.routes {
+		if method != route.httpMethod {
 			continue
 		}
 
-		// Getting each piece of the URL, no need to split on root / though
-		currentSplitted := strings.Split(app.routes[i].Pattern[1:], "/")
+		currentSplitted := strings.Split(route.pattern[1:], "/")
 		requestSplitted := strings.Split(url[1:], "/")
 
 		if len(currentSplitted) != len(requestSplitted) {
@@ -65,11 +70,10 @@ func (app *Application) matchRequest(method, url string) *matchingRoute {
 		}
 
 		matches := false
-		params := make(map[string]string)
 
 		for i := range currentSplitted {
 			if strings.HasPrefix(currentSplitted[i], ":") {
-				params[currentSplitted[i]] = requestSplitted[i]
+				params[currentSplitted[i][1:]] = requestSplitted[i]
 				continue
 			}
 			if currentSplitted[i] != requestSplitted[i] {
@@ -79,51 +83,35 @@ func (app *Application) matchRequest(method, url string) *matchingRoute {
 		}
 
 		if matches {
-			return &matchingRoute{app.routes[i], params}
+			return &route, params
 		}
 	}
-
-	return nil
+	return nil, params
 }
 
-// Returns an anonymous function that actually calls the user-defined
-// view after setting the params in the URL.RawQuery (or a 404)
-func (app *Application) dispatch() http.HandlerFunc {
+func (server *Server) dispatch() http.HandlerFunc {
 	return func(resp http.ResponseWriter, req *http.Request) {
 		requestPath := req.URL.Path
 		requestMethod := req.Method
 
 		log.Println(requestMethod, requestPath)
 
-		if requestMethod == "OPTIONS" {
-			resp.Header().Set("Access-Control-Allow-Origin", "*")
-			resp.Header().Set("Access-Control-Allow-Methods", "*")
-			resp.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			resp.WriteHeader(200)
-			resp.Write([]byte(""))
+		routeFound, params := server.matchRequest(requestMethod, requestPath)
+
+		if routeFound != nil {
+			context := newContext(&Request{*req}, Response{resp}, params)
+			routeFound.handler(context)
 			return
 		}
 
-		routeFound := app.matchRequest(requestMethod, requestPath)
+		http.NotFound(Response{resp}, req)
+		return
 
-		if routeFound != nil {
-			values := req.URL.Query()
-
-			for i := range routeFound.params {
-				values.Add(i, routeFound.params[i])
-			}
-
-			req.URL.RawQuery = url.Values(values).Encode() + "&" + req.URL.RawQuery
-			routeFound.route.Func(&Response{resp}, &Request{*req})
-		} else {
-			http.NotFound(Response{resp}, req)
-		}
 	}
 
 }
 
-// Basic implementation to satisfy interface, easy to add wrapper around like Gzip
-func (app *Application) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	handler := gzipWrapper(app.dispatch())
+func (server *Server) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	handler := gzipWrapper(server.dispatch())
 	handler(resp, req)
 }

@@ -11,23 +11,22 @@ import (
 
 type TestView struct{}
 
-var basicHandler = func(resp *Response, r *Request) {
-	resp.Send(200, []byte("Hello world"))
+var basicHandler = func(ctx *Context) {
+	ctx.Response.Send(200, []byte("Hello world"))
 }
 
-var handlerWithParam = func(resp *Response, r *Request) {
-	id := r.URL.Query().Get(":id")
-	resp.Send(200, string(id))
+var handlerWithParam = func(ctx *Context) {
+	id := ctx.Params["id"]
+	ctx.Response.Send(200, string(id))
 }
 
 func TestAddingRoute(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 	pattern := "/lets-kill-some-ducks"
 
-	app.SetRoutes(
-		Route{"GET", pattern, basicHandler},
-	)
-	foundPattern := app.routes[0].Pattern
+	server.Get(pattern, basicHandler)
+
+	foundPattern := server.routes[0].pattern
 
 	if foundPattern != pattern {
 		t.Error("Route was not present in the router after adding it")
@@ -35,14 +34,12 @@ func TestAddingRoute(t *testing.T) {
 }
 
 func TestAddingRouteWithTrailingSlash(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 	pattern := "/lets-kill-some-ducks/"
 	expectedPattern := "/lets-kill-some-ducks"
 
-	app.SetRoutes(
-		Route{"GET", pattern, basicHandler},
-	)
-	foundPattern := app.routes[0].Pattern
+	server.Get(pattern, basicHandler)
+	foundPattern := server.routes[0].pattern
 
 	if foundPattern != expectedPattern {
 		t.Error("Route was not present in the router after adding it")
@@ -53,14 +50,12 @@ func TestAddingRouteWithTrailingSlash(t *testing.T) {
 }
 
 func TestMatchExistingRoute(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 	pattern := "/ducks/:id"
 
-	app.SetRoutes(
-		Route{"GET", pattern, basicHandler},
-	)
+	server.Get(pattern, basicHandler)
 
-	routeFound := app.matchRequest("GET", "/ducks/0irfer8")
+	routeFound, _ := server.matchRequest("GET", "/ducks/0irfer8")
 
 	if routeFound == nil {
 		t.Error("Couldn't find a match for the given url")
@@ -68,13 +63,11 @@ func TestMatchExistingRoute(t *testing.T) {
 }
 
 func TestMatchUnexistingRoute(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 	pattern := "/ducks/:id"
 
-	app.SetRoutes(
-		Route{"GET", pattern, basicHandler},
-	)
-	routeFound := app.matchRequest("GET", "/ducks/0irfer8/ducklings")
+	server.Get(pattern, basicHandler)
+	routeFound, _ := server.matchRequest("GET", "/ducks/0irfer8/ducklings")
 
 	if routeFound != nil {
 		t.Error("Found a match for the given url when we shouldn't have")
@@ -84,11 +77,9 @@ func TestMatchUnexistingRoute(t *testing.T) {
 // High-level tests -----
 
 func TestServeOk(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 
-	app.SetRoutes(
-		Route{"GET", "/ducks/:id", handlerWithParam},
-	)
+	server.Get("/ducks/:id", handlerWithParam)
 
 	req, err := http.NewRequest("GET", "/ducks/0irfer8", nil)
 	if err != nil {
@@ -97,7 +88,7 @@ func TestServeOk(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	app.ServeHTTP(w, req)
+	server.ServeHTTP(w, req)
 
 	if w.Code != 200 {
 		t.Errorf("Received http code %d instead of 200", w.Code)
@@ -117,7 +108,7 @@ func TestServeOk(t *testing.T) {
 }
 
 func TestServeNotExistingRoute(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 
 	req, err := http.NewRequest("GET", "/ducks/0irfer8", nil)
 	if err != nil {
@@ -125,7 +116,7 @@ func TestServeNotExistingRoute(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 
-	app.ServeHTTP(w, req)
+	server.ServeHTTP(w, req)
 
 	if w.Code != 404 {
 		t.Errorf("Received http code %d instead of 404", w.Code)
@@ -133,11 +124,9 @@ func TestServeNotExistingRoute(t *testing.T) {
 }
 
 func TestServeTrailingSlash(t *testing.T) {
-	app := NewApplication()
+	server := NewServer()
 
-	app.SetRoutes(
-		Route{"GET", "/ducks/:id", handlerWithParam},
-	)
+	server.Get("/ducks/:id", handlerWithParam)
 
 	req, err := http.NewRequest("GET", "/ducks/0irfer8/", nil)
 	if err != nil {
@@ -145,7 +134,7 @@ func TestServeTrailingSlash(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 
-	app.ServeHTTP(w, req)
+	server.ServeHTTP(w, req)
 
 	if w.Code != 404 {
 		t.Errorf("Received http code %d instead of 404", w.Code)

@@ -46,8 +46,7 @@ func (resp *Response) SendError(apiError *ApiError) {
 }
 
 func (resp *Response) sendInternalError() {
-	resp.WriteHeader(http.StatusInternalServerError)
-	resp.Write([]byte(""))
+	resp.SendError(NewInternalError())
 }
 
 func (resp *Response) writeResponse(httpCode int, content []byte) {
